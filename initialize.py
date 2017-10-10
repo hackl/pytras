@@ -3,7 +3,7 @@
 # =============================================================================
 # File      : initialize.py 
 # Creation  : 26 Oct 2015
-# Time-stamp: <Die 2017-10-10 08:18 juergen>
+# Time-stamp: <Die 2017-10-10 11:20 juergen>
 #
 # Copyright (c) 2015 Jürgen Hackl <hackl@ibi.baug.ethz.ch>
 #               http://www.ibi.ethz.ch

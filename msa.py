@@ -1,7 +1,7 @@
 #!/usr/bin/python -tt
 # -*- coding: utf-8 -*-
 # =============================================================================
-# Time-stamp: <Fre 2017-08-25 13:41 juergen>
+# Time-stamp: <Die 2017-10-10 13:02 juergen>
 # File      : msa.py 
 # Creation  : 08 Oct 2015
 #
@@ -99,7 +99,7 @@ class TrafficAssignment(object):
         self.od_graph = od_graph
         self.od_matrix = od_matrix
         self.lost_trips = {}
-
+        self.cut_links = []
 
         self.print_flag = True
         self.unit_factor = 1000
@@ -199,12 +199,26 @@ class TrafficAssignment(object):
             if self.get_edge_attribute(edge,'capacity') == 0:
                 graph.remove_edge(edge[0],edge[1])
 
+        cut_links = []
         for edge in self.od_graph.edges():
             s = edge[0] # source
             t = edge[1] # target
             if not nx.has_path(graph,s,t):
                 self.lost_trips[(s,t)] = self.od_graph[s][t]['demand']
                 self.od_graph.remove_edge(s,t)
+
+                cut_value, partition = nx.minimum_cut(self.graph,s,t)
+                reachable, non_reachable = partition
+
+                cutset = set()
+                for u, nbrs in ((n, self.graph[n]) for n in reachable):
+                    cutset.update((u, v) for v in nbrs if v in non_reachable)
+                cut_links.extend(list(cutset))
+
+        for edge in list(set(cut_links)):
+            if self.graph[edge[0]][edge[1]]['capacity'] == 0:
+                self.cut_links.append(edge)
+
         pass
 
     def run(self):
@@ -286,6 +300,9 @@ class TrafficAssignment(object):
 
     def get_lost_trips(self):
         return self.lost_trips
+
+    def get_cut_links(self):
+        return self.cut_links
 
     def print_results(self):
         for edge in self.graph.edges():
