@@ -3,7 +3,7 @@
 # =============================================================================
 # File      : initialize.py 
 # Creation  : 26 Oct 2015
-# Time-stamp: <Die 2017-10-10 11:20 juergen>
+# Time-stamp: <Mit 2018-02-07 10:53 juergen>
 #
 # Copyright (c) 2015 Jürgen Hackl <hackl@ibi.baug.ethz.ch>
 #               http://www.ibi.ethz.ch
@@ -78,7 +78,7 @@ def read_shp(path):
                 xy = (round(g.GetPoint_2D(0)[0],residual),round(g.GetPoint_2D(0)[1],residual))
                 name = attributes['name']
                 attributes['coordinates'] = (xy)
-                net.add_node(name, attributes)
+                net.add_node(name, **attributes)
             if g.GetGeometryType() == 2:  # linestring
                 attributes["Wkb"] = g.ExportToWkb()
                 attributes["Wkt"] = g.ExportToWkt()
@@ -90,7 +90,8 @@ def read_shp(path):
                 # create notes and round cooridinates
                 u_node = (round(g.GetPoint_2D(0)[0],residual),round(g.GetPoint_2D(0)[1],residual))
                 v_node = (round(g.GetPoint_2D(last)[0],residual),round(g.GetPoint_2D(last)[1],residual))
-                net.add_edge(u_node, v_node, attributes)
+                net.add_edge(u_node, v_node)
+                net[u_node][v_node].update(attributes)
 
     return net
 

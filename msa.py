@@ -1,7 +1,7 @@
 #!/usr/bin/python -tt
 # -*- coding: utf-8 -*-
 # =============================================================================
-# Time-stamp: <Die 2017-10-10 13:02 juergen>
+# Time-stamp: <Mit 2018-02-07 15:10 juergen>
 # File      : msa.py 
 # Creation  : 08 Oct 2015
 #
@@ -28,6 +28,8 @@ import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
 import itertools
+import collections
+
 
 class TrafficAssignment(object):
     """Traffic model to estimate the flow, velocity and travel time on a road
@@ -93,11 +95,12 @@ class TrafficAssignment(object):
 
     """
 
-    def __init__(self, graph, od_graph,od_matrix=None):
+    def __init__(self, graph, od_graph,od_matrix=None,paths=False):
 
         self.graph = graph
         self.od_graph = od_graph
         self.od_matrix = od_matrix
+        self.paths = paths
         self.lost_trips = {}
         self.cut_links = []
 
@@ -105,11 +108,13 @@ class TrafficAssignment(object):
         self.unit_factor = 1000
         self.alpha = 0.15#1
         self.beta = 4#2
-        self.threshold = 0.001#1e-5
+        self.threshold = 0.0000001#1e-5
         self.large = 1e+14
         # number of iterations for the corrective factors
-        self.n_iter_tm = 500#1000#1001
+        self.n_iter_tm = 1000#1000#1001
 
+        self.temp_list = []
+        self.od_paths = collections.defaultdict(dict)
         pass
 
     def get_edge_attribute(self,edge,attribute):
@@ -153,7 +158,7 @@ class TrafficAssignment(object):
             self.set_edge_attribute(edge,'t_h',self.get_edge_attribute(edge,'t_k'))
         pass
 
-    def calculate_auxiliary_flows(self):
+    def calculate_auxiliary_flows(self,phi):
         self.set_initial_help_flow()
 
         for edge in self.od_graph.edges():
@@ -165,17 +170,38 @@ class TrafficAssignment(object):
             for i in range(len(sp)-1):
                 u = sp[i]
                 v = sp[i+1]
-                self.graph[u][v]['help_flow'] += self.od_graph[s][t]['demand'] # += correct ???
+                self.graph[u][v]['help_flow'] += self.od_graph[s][t]['demand']
+
+            if self.paths:
+                # add path values to list
+                # no internal flows
+                if s != t:
+                    self.temp_list.append([edge,sp,self.od_graph[s][t]['demand'],phi])
+                    self.od_paths[str(edge)][str(sp)] = 0
+        pass
+
+    def calculate_path_flows(self):
+        self.temp_list.sort(key=lambda x: x[3])
+        for path in self.od_graph.edges():
+            sum_path_flow = 0
+            for path_flow in self.temp_list:
+                if path_flow[0] == path:
+                    sum_path_flow += path_flow[2]*path_flow[3]
+                    self.od_paths[str(path)][str(path_flow[1])] += path_flow[2]*path_flow[3]
+                    if sum_path_flow >= path_flow[2]:
+                        break
         pass
 
     def calculate_flows(self,phi):
         for edge in self.graph.edges():
             if edge[0] != edge[1]:
                 flow = (1-phi) * self.get_edge_attribute(edge,'flow') + phi * self.get_edge_attribute(edge,'help_flow')
+                # print('help flow ',phi *self.get_edge_attribute(edge,'help_flow'))
             else: # internal flow
                 if (isinstance(edge[0],int) and isinstance(edge[1],int)): # no self loops of roads
                     flow = self.od_graph[edge[0]][edge[1]]['demand']
             self.set_edge_attribute(edge,'flow',flow)
+
         pass
 
     def calculate_traveltime(self):
@@ -200,7 +226,7 @@ class TrafficAssignment(object):
                 graph.remove_edge(edge[0],edge[1])
 
         cut_links = []
-        for edge in self.od_graph.edges():
+        for edge in list(self.od_graph.edges()):
             s = edge[0] # source
             t = edge[1] # target
             if not nx.has_path(graph,s,t):
@@ -245,7 +271,7 @@ class TrafficAssignment(object):
         for i in range(1,self.n_iter_tm):
             phi = 1/i
             # calculate auxiliary flows
-            self.calculate_auxiliary_flows()
+            self.calculate_auxiliary_flows(phi)
 
             # calculating the flow using auxiliary flow
             self.calculate_flows(phi)
@@ -259,6 +285,10 @@ class TrafficAssignment(object):
             # stopping criteria
             if self.stopping_criteria():
                 break
+
+        # extract the path flows
+        if self.paths:
+            self.calculate_path_flows()
         pass
 
 
@@ -277,6 +307,9 @@ class TrafficAssignment(object):
                 if self.get_edge_attribute(edge,'capacity') != 0:
                     flow.append(self.get_edge_attribute(edge,'flow'))
         return flow
+
+    def get_od_path_flows(self):
+        return self.od_paths
 
 
     def get_car_hours(self):
